@@ -115,13 +115,8 @@
         });
 
         socket.on("disconnect", () => {
-                console.log("WebSocket PUTUS!");
-                // Coba untuk reconnect setelah beberapa detik
-                setTimeout(() => {
-                    socket.connect();
-                }, 5000);  // 5 detik
-            });
-
+            console.log("WebSocket PUTUS!");
+        });
     </script>
     <!-- JavaScript untuk interaksi dengan API dan lainnya -->
     <script>
@@ -170,23 +165,32 @@
 
     // Fungsi untuk unggah video
     uploadVideoForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const videoName = document.getElementById('videoName').value;
-        const videoURL = document.getElementById('videoURL').value;
+            e.preventDefault();
+            const videoName = document.getElementById('videoName').value;
+            const videoURL = document.getElementById('videoURL').value;
 
-        // Mengirim data video ke server menggunakan fetch
-        fetch('/save_video', {
-            method: 'POST',
-            body: new URLSearchParams({
-                'name': videoName,
-                'url': videoURL
+            fetch('/save_video', {
+                method: 'POST',
+                body: new URLSearchParams({
+                    'name': videoName,
+                    'url': videoURL
+                })
             })
-        }).then(response => response.json())
-            .then(data => {
-                alert(data.message);  // Menampilkan pesan sukses
-                addVideoToTable(videoName, videoURL); // Menambahkan video ke tabel
-            });
-    });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        alert(data.message);  // Menampilkan pesan sukses
+                        addVideoToTable(videoName, videoURL); // Menambahkan video ke tabel
+                    } else {
+                        alert("Error: " + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error("Error during fetch:", error);
+                    alert("Gagal menghubungi server!");
+                });
+        });
+
 
     // Fungsi untuk menambahkan video ke tabel setelah disimpan
     function addVideoToTable(videoName, videoURL) {
@@ -437,41 +441,11 @@
             .catch(error => console.error("Error saat memulai stream:", error));
     }
 
+    // WebSocket akan otomatis update UI setelah stream dimulai
     socket.on("update_status", (data) => {
-            console.log("Update status diterima:", data);
-
-            // Memperbarui jumlah stream aktif
-            const activeCountElement = document.getElementById('activeCount');
-            activeCountElement.innerText = data.activeStreams.length;  // Menampilkan jumlah stream aktif
-
-            // Memperbarui jumlah stream dijadwalkan
-            const scheduledCountElement = document.getElementById('scheduledCount');
-            scheduledCountElement.innerText = data.scheduledStreams.length;  // Menampilkan jumlah stream dijadwalkan
-
-            // Memperbarui daftar stream aktif
-            const activeStreamsContainer = document.getElementById('activeStreamsList');
-            activeStreamsContainer.innerHTML = '';  // Clear existing list
-            data.activeStreams.forEach((stream) => {
-                const streamElement = document.createElement('li');
-                streamElement.innerHTML = `<strong>${stream.name}</strong> - Status: ${stream.status}, Elapsed Time: ${stream.elapsed_time} seconds`;
-                activeStreamsContainer.appendChild(streamElement);
-            });
-
-            // Memperbarui daftar stream yang dijadwalkan
-            const scheduledStreamsContainer = document.getElementById('scheduledStreamsList');
-            scheduledStreamsContainer.innerHTML = '';  // Clear existing list
-            data.scheduledStreams.forEach((stream) => {
-                const streamElement = document.createElement('div');
-                streamElement.classList.add('stream-card'); // Jika Anda ingin styling khusus
-                streamElement.innerHTML = `<strong>${stream.name}</strong> - Status: ${stream.status}, Start Time: ${stream.start_time}, End Time: ${stream.end_time}`;
-                scheduledStreamsContainer.appendChild(streamElement);
-            });
-        });
-
-
-
-
-
+        console.log("Update status diterima:", data);
+        updateStreamUI(data);
+    });
 
     // Fungsi untuk menghentikan stream
     function stopStream(streamId) {
