@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Livetools by OTONX</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Livetools by OTONX</h1>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('dashboard')">Dashboard</button>
+            <button class="tab-button" onclick="showTab('upload')">Unggah Video</button>
+            <button class="tab-button" onclick="showTab('schedule')">Jadwalkan Stream Langsung</button>
+        </div>
+
+        <!-- Tab Content: Dashboard -->
+        <section class="tab-content active" id="dashboard">
+
+            <!-- Kartu informasi Live Aktif dan Dijadwalkan -->
+            <div class="info-container">
+                <div class="info-card">
+                    <h3>Live Aktif</h3>
+                    <p id="activeCount">1</p> <!-- Jumlah stream aktif, akan di-update dengan JavaScript -->
+                </div>
+                <div class="info-card">
+                    <h3>Live Dijadwalkan</h3>
+                    <p id="scheduledCount">0</p> <!-- Jumlah stream dijadwalkan, akan di-update dengan JavaScript -->
+                </div>
+            </div>
+
+            <div class="stream-category">
+                <h2>Stream Aktif</h2>
+                <ul id="activeStreamsList"></ul>
+            </div>
+
+
+
+            <div class="stream-category">
+                <h2>Stream Dijadwalkan</h2>
+                <!-- Ganti <ul> menjadi <div> untuk kartu -->
+                <div id="scheduledStreamsList" class="stream-list">
+                    <!-- Data stream dijadwalkan akan muncul di sini dalam bentuk kartu -->
+                </div>
+            </div>
+        </section>
+
+
+        <!-- Tab Content: Unggah Video -->
+        <section class="tab-content" id="upload">
+            <h2>Unggah Video</h2>
+            <form id="uploadVideoForm">
+                <input type="text" id="videoName" placeholder="Nama Video" required>
+                <input type="url" id="videoURL" placeholder="URL Video" required>
+                <button type="submit">Simpan Video</button>
+            </form>
+
+            <!-- Tabel untuk menampilkan video yang sudah diunggah -->
+            <div id="videoTableContainer">
+                <h3>Daftar Video</h3>
+                <table id="videoTable">
+                    <thead>
+                        <tr>
+                            <th>Nama Video</th>
+                            <th>URL/Path Video</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data video akan ditampilkan di sini -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+
+        <!-- Tab Content: Jadwalkan Stream -->
+        <section class="tab-content" id="schedule">
+            <h2>Jadwalkan Stream Langsung</h2>
+            <form id="scheduleStreamForm">
+                <select id="videoSelect" required>
+                    <option value="1">Sunset Bali</option>
+                    <option value="2">Morning Beach</option>
+                    <option value="3">Bali Waterfall</option>
+                    <option value="4">Night Sky</option>
+                    <option value="5">Surfing Bali</option>
+                </select>
+                <input type="text" id="streamKey" placeholder="Stream Key" required>
+                <input type="datetime-local" id="startTime" required>
+                <input type="datetime-local" id="endTime" required>
+                <label for="loop">Loop Stream</label>
+                <input type="checkbox" id="loop">
+                <button type="submit">Jadwalkan Stream</button>
+            </form>
+        </section>
+    </div>
+    <!-- Load Socket.IO dari CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+
+    <!-- WebSocket -->
+    <script>
+        const socket = io();
+
+        socket.on("connect", () => {
+            console.log("WebSocket TERSAMBUNG!");
+        });
+
+        socket.on("disconnect", () => {
+                console.log("WebSocket PUTUS!");
+                // Coba untuk reconnect setelah beberapa detik
+                setTimeout(() => {
+                    socket.connect();
+                }, 5000);  // 5 detik
+            });
+
+    </script>
+    <!-- JavaScript untuk interaksi dengan API dan lainnya -->
+    <script>
+        // Fungsi untuk mengatur tab
+        function showTab(tabName) {
+            // Menyembunyikan semua tab-content
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Menghapus kelas 'active' dari semua tab-button
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+
+            // Menampilkan konten tab yang dipilih
+            const activeTab = document.getElementById(tabName);
+            activeTab.classList.add('active');
+
+            // Menandai tab yang dipilih sebagai aktif
+            const activeButton = document.querySelector(`.tab-button[onclick="showTab('${tabName}')"]`);
+            activeButton.classList.add('active');
+        }
+
+        // Pastikan kode dijalankan setelah konten dimuat sepenuhnya
+        document.addEventListener('DOMContentLoaded', function () {
+            // Menampilkan tab pertama (dashboard) secara default
+            showTab('dashboard');
+        });
+    </script>
+</body>
+
+</html>
+
+
+
+<script>
+    // JavaScript untuk interaksi dengan API Flask (AJAX)
+    const uploadVideoForm = document.getElementById('uploadVideoForm');
+    const scheduleStreamForm = document.getElementById('scheduleStreamForm');
+    const activeStreamsList = document.getElementById('activeStreamsList');
+    const scheduledStreamsList = document.getElementById('scheduledStreamsList');
+    const videoSelect = document.getElementById('videoSelect');
+
+    // Fungsi untuk unggah video
+    uploadVideoForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const videoName = document.getElementById('videoName').value;
+        const videoURL = document.getElementById('videoURL').value;
+
+        // Mengirim data video ke server menggunakan fetch
+        fetch('/save_video', {
+            method: 'POST',
+            body: new URLSearchParams({
+                'name': videoName,
+                'url': videoURL
+            })
+        }).then(response => response.json())
+            .then(data => {
+                alert(data.message);  // Menampilkan pesan sukses
+                addVideoToTable(videoName, videoURL); // Menambahkan video ke tabel
+            });
+    });
+
+    // Fungsi untuk menambahkan video ke tabel setelah disimpan
+    function addVideoToTable(videoName, videoURL) {
+        const videoTable = document.getElementById('videoTable').getElementsByTagName('tbody')[0];
+
+        // Menambahkan baris baru ke tabel
+        const row = videoTable.insertRow();
+        const cell1 = row.insertCell(0);
+        const cell2 = row.insertCell(1);
+        const cell3 = row.insertCell(2);  // Cell untuk tombol hapus
+
+        // Menambahkan Nama Video dan URL ke dalam tabel
+        cell1.textContent = videoName;
+        cell2.textContent = videoURL;
+
+        // Menambahkan tombol hapus (X) di kolom ketiga
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'X';
+        deleteButton.style.backgroundColor = 'transparent';
+        deleteButton.style.color = 'red';
+        deleteButton.style.border = '1px solid red';  // Tambahkan border untuk membuat tombol lebih kecil dan jelas
+        deleteButton.style.borderRadius = '3px';  // Tombol berbentuk kotak kecil
+        deleteButton.style.fontSize = '12px';  // Ukuran tombol kecil
+        deleteButton.style.cursor = 'pointer';
+        deleteButton.style.padding = '2px 5px';  // Padding kecil agar tombol kecil
+        deleteButton.style.marginLeft = '10px'; // Memberikan jarak antar tombol dan konten
+
+        // Menambahkan event listener pada tombol hapus
+        deleteButton.addEventListener('click', () => {
+            deleteRow(row);
+        });
+
+        cell3.appendChild(deleteButton);  // Menambahkan tombol hapus ke dalam kolom 3
+    }
+
+    // Fungsi untuk menghapus baris dari tabel
+    function deleteRow(row) {
+        row.remove();  // Menghapus baris yang dipilih
+    }
+
+
+
+    // Fungsi untuk menjadwalkan stream
+    scheduleStreamForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const videoId = videoSelect.value;
+        const streamKey = document.getElementById('streamKey').value;
+        const startTime = document.getElementById('startTime').value;
+        const endTime = document.getElementById('endTime').value;
+        const loop = document.getElementById('loop').checked;
+
+        fetch('/schedule_live', {
+            method: 'POST',
+            body: new URLSearchParams({
+                'videoId': videoId,
+                'streamKey': streamKey,
+                'startTime': startTime,
+                'endTime': endTime,
+                'loop': loop.toString()
+            })
+        }).then(response => response.json()).then(data => {
+            alert(data.message);
+            loadStreamData(); // Memuat ulang data stream setelah dijadwalkan
+        });
+    });
+
+    // Fungsi untuk memuat daftar video
+    function loadVideos() {
+        fetch('/get_videos').then(response => response.json()).then(data => {
+            videoSelect.innerHTML = '<option value="">Pilih Video</option>';
+            data.videos.forEach(video => {
+                const option = document.createElement('option');
+                option.value = video.name;
+                option.textContent = video.name;
+                videoSelect.appendChild(option);
+            });
+        });
+    }
+
+
+    // Fungsi untuk memuat status stream aktif dan terjadwal
+    function loadStreamData() {
+        if (typeof io !== "undefined") {
+            console.log("Menggunakan WebSocket untuk update status...");
+            socket.emit("request_status");  // Minta data terbaru dari server lewat WebSocket
+        } else {
+            console.log("WebSocket tidak tersedia, fallback ke fetch API...");
+            fetch('/get_stream_status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Data dari server:", data);
+                    updateStreamUI(data);
+                })
+                .catch(error => {
+                    console.error('Error loading stream data:', error);
+                });
+        }
+    }
+
+    // Fungsi untuk update UI dari data stream
+    function updateStreamUI(data) {
+        console.log("Update status diterima dari WebSocket:", data);
+
+        // Pastikan activeStreams & scheduledStreams gak undefined/null
+        const activeStreams = data.activeStreams || [];
+        const scheduledStreams = data.scheduledStreams || [];
+
+        // Memuat Stream Aktif
+        const activeStreamsList = document.getElementById('activeStreamsList');
+        activeStreamsList.innerHTML = ''; // Mengosongkan daftar aktif
+
+        // Update jumlah stream aktif
+        document.getElementById('activeCount').textContent = activeStreams.length;
+
+        activeStreams.forEach(stream => {
+            console.log("Stream in active streams:", stream);
+
+            const streamCard = document.createElement('div');
+            streamCard.classList.add('stream-card');
+
+            const cardTitle = document.createElement('h3');
+            cardTitle.textContent = `${stream.name} - ${stream.video}`;
+
+            const cardDetails = document.createElement('p');
+            cardDetails.textContent = `${stream.status} - ${stream.elapsed_time}s`;
+
+            const cardButtons = document.createElement('div');
+            cardButtons.classList.add('buttons');
+
+            // Tombol Stop
+            const stopButton = document.createElement('button');
+            stopButton.textContent = 'Stop';
+            stopButton.addEventListener('click', () => stopStream(stream.stream_id));
+
+            // Tombol Mulai Ulang
+            const restartButton = document.createElement('button');
+            restartButton.textContent = 'Mulai Ulang';
+            restartButton.addEventListener('click', () => restartStream(stream.stream_id));
+
+            // Tombol Hapus
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Hapus';
+            deleteButton.addEventListener('click', () => deleteStream(stream.stream_id));
+
+            // Tambahin tombol ke dalam kartu
+            cardButtons.appendChild(stopButton);
+            cardButtons.appendChild(restartButton);
+            cardButtons.appendChild(deleteButton);
+
+            // Tambahin elemen ke dalam kartu
+            streamCard.appendChild(cardTitle);
+            streamCard.appendChild(cardDetails);
+            streamCard.appendChild(cardButtons);
+
+            // Tambahin kartu ke dalam daftar stream aktif
+            activeStreamsList.appendChild(streamCard);
+        });
+
+        // Memuat Stream Dijadwalkan
+        const scheduledStreamsList = document.getElementById('scheduledStreamsList');
+        scheduledStreamsList.innerHTML = ''; // Mengosongkan daftar dijadwalkan
+
+        // Update jumlah stream dijadwalkan
+        document.getElementById('scheduledCount').textContent = scheduledStreams.length;
+
+        scheduledStreams.forEach(stream => {
+            console.log("Stream in scheduled streams:", stream);
+
+            const streamCard = document.createElement('div');
+            streamCard.classList.add('stream-card');
+
+            const cardTitle = document.createElement('h3');
+            cardTitle.textContent = `${stream.name} - ${stream.video}`;
+
+            const cardDetails = document.createElement('p');
+            cardDetails.textContent = `Dijadwalkan dari ${stream.start_time} hingga ${stream.end_time}`;
+
+            const cardButtons = document.createElement('div');
+            cardButtons.classList.add('buttons');
+
+            // Tombol Mulai
+            const startButton = document.createElement('button');
+            startButton.textContent = 'Mulai';
+            startButton.addEventListener('click', () => startStream(stream.stream_id));
+
+            // Tombol Hapus
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Hapus';
+            deleteButton.addEventListener('click', () => deleteStream(stream.stream_id));
+
+            // Tambahin tombol ke dalam kartu
+            cardButtons.appendChild(startButton);
+            cardButtons.appendChild(deleteButton);
+
+            // Tambahin elemen ke dalam kartu
+            streamCard.appendChild(cardTitle);
+            streamCard.appendChild(cardDetails);
+            streamCard.appendChild(cardButtons);
+
+            // Tambahin kartu ke dalam daftar stream dijadwalkan
+            scheduledStreamsList.appendChild(streamCard);
+        });
+    }
+
+    // WebSocket event listener untuk update otomatis
+        socket.on("update_status", (data) => {
+            console.log("Update status diterima dari WebSocket:", data);
+
+            // Cek apakah data memiliki activeStreams & scheduledStreams
+            if (data.activeStreams && data.scheduledStreams) {
+                updateStreamUI(data);
+            } else {
+                console.error("Format data WebSocket tidak sesuai!", data);
+            }
+        });
+
+
+    // Fungsi untuk memulai stream
+    function startStream(streamId) {
+        const videoId = document.getElementById('videoSelect').value;
+        const streamKey = document.getElementById('streamKey').value;
+
+        console.log("Starting stream with streamId:", streamId, "videoId:", videoId, "streamKey:", streamKey);
+
+        if (!videoId || !streamKey) {
+            console.error("Video ID atau Stream Key kosong!");
+            alert("Video ID dan Stream Key harus diisi!");
+            return;
+        }
+
+        fetch('/start_live', {
+            method: 'POST',
+            body: new URLSearchParams({
+                'streamId': streamId,
+                'videoId': videoId,
+                'streamKey': streamKey
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Response dari server:", data);
+                if (data.message) {
+                    alert(data.message);
+                } else {
+                    alert(data.error);
+                }
+            })
+            .catch(error => console.error("Error saat memulai stream:", error));
+    }
+
+    socket.on("update_status", (data) => {
+            console.log("Update status diterima:", data);
+
+            // Memperbarui jumlah stream aktif
+            const activeCountElement = document.getElementById('activeCount');
+            activeCountElement.innerText = data.activeStreams.length;  // Menampilkan jumlah stream aktif
+
+            // Memperbarui jumlah stream dijadwalkan
+            const scheduledCountElement = document.getElementById('scheduledCount');
+            scheduledCountElement.innerText = data.scheduledStreams.length;  // Menampilkan jumlah stream dijadwalkan
+
+            // Memperbarui daftar stream aktif
+            const activeStreamsContainer = document.getElementById('activeStreamsList');
+            activeStreamsContainer.innerHTML = '';  // Clear existing list
+            data.activeStreams.forEach((stream) => {
+                const streamElement = document.createElement('li');
+                streamElement.innerHTML = `<strong>${stream.name}</strong> - Status: ${stream.status}, Elapsed Time: ${stream.elapsed_time} seconds`;
+                activeStreamsContainer.appendChild(streamElement);
+            });
+
+            // Memperbarui daftar stream yang dijadwalkan
+            const scheduledStreamsContainer = document.getElementById('scheduledStreamsList');
+            scheduledStreamsContainer.innerHTML = '';  // Clear existing list
+            data.scheduledStreams.forEach((stream) => {
+                const streamElement = document.createElement('div');
+                streamElement.classList.add('stream-card'); // Jika Anda ingin styling khusus
+                streamElement.innerHTML = `<strong>${stream.name}</strong> - Status: ${stream.status}, Start Time: ${stream.start_time}, End Time: ${stream.end_time}`;
+                scheduledStreamsContainer.appendChild(streamElement);
+            });
+        });
+
+
+
+
+
+
+    // Fungsi untuk menghentikan stream
+    function stopStream(streamId) {
+        console.log("Menghentikan stream ID:", streamId);
+
+        fetch('/stop_live', {
+            method: 'POST',
+            body: new URLSearchParams({
+                'streamId': streamId
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Response dari server:", data);
+                alert(data.message);
+
+                // WebSocket bakal update UI otomatis, jadi gak perlu refresh manual
+            })
+            .catch(error => console.error("Error saat menghentikan stream:", error));
+    }
+
+    // WebSocket bakal langsung update UI kalau ada perubahan status
+    socket.on("update_status", (data) => {
+        console.log("Update status diterima:", data);
+        updateStreamUI(data);
+    });
+
+    // Fungsi untuk mengulang stream
+    function restartStream(streamId) {
+        fetch('/start_live', {
+            method: 'POST',
+            body: new URLSearchParams({
+                'streamId': streamId
+            })
+        }).then(response => response.json()).then(data => {
+            alert(data.message);
+            loadStreamData(); // Memuat ulang data setelah restart
+        });
+    }
+
+    // Fungsi untuk menghapus stream
+    function deleteStream(stream_id) {
+        console.log("Deleting stream with ID:", stream_id);  // Debugging untuk melihat ID yang diteruskan
+
+        fetch('/delete_stream', {
+            method: 'POST',
+            body: new URLSearchParams({
+                'stream_id': parseInt(stream_id)  // Mengubah stream_id menjadi integer
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Response from server:", data);  // Lihat response dari server
+                if (data.message) {
+                    alert(data.message);  // Menampilkan pesan sukses
+                } else {
+                    alert(data.error);  // Menampilkan pesan error
+                }
+                loadStreamData();  // Memuat ulang data setelah stream dihapus
+            })
+            .catch(error => console.error("Error while deleting stream:", error));
+    }
+
+    // Memuat video dan data stream saat pertama kali
+    loadVideos();
+    loadStreamData();
+
+
+</script>
+</body>
+
+</html>
