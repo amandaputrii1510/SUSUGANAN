@@ -1,9 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
 
-<!DOCTYPE html>
-<html lang="id">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -87,13 +84,14 @@
         <section class="tab-content" id="schedule">
             <h2>Jadwalkan Stream Langsung</h2>
             <form id="scheduleStreamForm">
-                <select id="videoSelect" required>
-                    <option value="1">Sunset Bali</option>
-                    <option value="2">Morning Beach</option>
-                    <option value="3">Bali Waterfall</option>
-                    <option value="4">Night Sky</option>
-                    <option value="5">Surfing Bali</option>
-                </select>
+                                <select id="videoSelect" required>
+                                    <option value="" disabled selected>Pilih Video</option>
+                                    <option value="1">Sunset Bali</option>
+                                    <option value="2">Morning Beach</option>
+                                    <option value="3">Bali Waterfall</option>
+                                    <option value="4">Night Sky</option>
+                                    <option value="5">Surfing Bali</option>
+                                </select>
                 <input type="text" id="streamKey" placeholder="Stream Key" required>
                 <input type="datetime-local" id="startTime" required>
                 <input type="datetime-local" id="endTime" required>
@@ -114,9 +112,13 @@
             console.log("WebSocket TERSAMBUNG!");
         });
 
-        socket.on("disconnect", () => {
-            console.log("WebSocket PUTUS!");
-        });
+                socket.on("disconnect", (reason) => {
+                        console.log(`WebSocket PUTUS! Alasan: ${reason}`);
+                        // Coba reconnect setelah 5 detik
+                        setTimeout(() => {
+                            socket.connect();
+                        }, 5000);
+                    });
     </script>
     <!-- JavaScript untuk interaksi dengan API dan lainnya -->
     <script>
@@ -169,26 +171,31 @@
             const videoName = document.getElementById('videoName').value;
             const videoURL = document.getElementById('videoURL').value;
 
-            fetch('/save_video', {
-                method: 'POST',
-                body: new URLSearchParams({
-                    'name': videoName,
-                    'url': videoURL
-                })
+                        fetch('/save_video', {
+            method: 'POST',
+            body: new URLSearchParams({
+                'name': videoName,
+                'url': videoURL
             })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.message) {
-                        alert(data.message);  // Menampilkan pesan sukses
-                        addVideoToTable(videoName, videoURL); // Menambahkan video ke tabel
-                    } else {
-                        alert("Error: " + data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error("Error during fetch:", error);
-                    alert("Gagal menghubungi server!");
-                });
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);  // Menampilkan pesan sukses
+                    addVideoToTable(videoName, videoURL); // Menambahkan video ke tabel
+                } else {
+                    alert("Error: " + data.error);
+                }
+            })
+            .catch(error => {
+                console.error("Error during fetch:", error);
+                alert("Gagal menghubungi server! Error: " + error.message);
+            });
         });
 
 
@@ -395,17 +402,17 @@
         });
     }
 
-    // WebSocket event listener untuk update otomatis
-        socket.on("update_status", (data) => {
-            console.log("Update status diterima dari WebSocket:", data);
+        // WebSocket event listener untuk update otomatis
+            socket.on("update_status", (data) => {
+                console.log("Update status diterima dari WebSocket:", data);
 
-            // Cek apakah data memiliki activeStreams & scheduledStreams
-            if (data.activeStreams && data.scheduledStreams) {
-                updateStreamUI(data);
-            } else {
-                console.error("Format data WebSocket tidak sesuai!", data);
-            }
-        });
+                // Cek apakah data memiliki activeStreams & scheduledStreams
+                if (data.activeStreams && data.scheduledStreams) {
+                    updateStreamUI(data);
+                } else {
+                    console.error("Format data WebSocket tidak sesuai!", data);
+                }
+            });
 
 
     // Fungsi untuk memulai stream
@@ -441,11 +448,7 @@
             .catch(error => console.error("Error saat memulai stream:", error));
     }
 
-    // WebSocket akan otomatis update UI setelah stream dimulai
-    socket.on("update_status", (data) => {
-        console.log("Update status diterima:", data);
-        updateStreamUI(data);
-    });
+
 
     // Fungsi untuk menghentikan stream
     function stopStream(streamId) {
